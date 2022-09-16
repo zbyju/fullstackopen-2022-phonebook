@@ -56,6 +56,16 @@ app.get("/api/persons/:id", (req, res) => {
 app.post("/api/persons", (req, res) => {
   const person = req.body;
   person.id = generateId();
+  if (!person.name || person.name === "") {
+    return res.status(400).send({ msg: "No name was specified" });
+  }
+  if (!person.number || person.number === "") {
+    return res.status(400).send({ msg: "No number was specified" });
+  }
+  const existingPerson = persons.find((p) => p.name === person.name);
+  if (existingPerson !== undefined) {
+    return res.status(400).send({ msg: "Name must be unique" });
+  }
 
   persons.push(person);
   return res.status(201).send({

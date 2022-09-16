@@ -1,6 +1,8 @@
 const express = require("express");
 const app = express();
 
+app.use(express.json());
+
 let persons = [
   {
     id: 1,
@@ -24,6 +26,10 @@ let persons = [
   },
 ];
 
+function generateId() {
+  return Math.floor(Math.random() * 10000000);
+}
+
 app.get("/info", (req, res) => {
   res.send(
     `<p>Phonebook has info about ${
@@ -45,6 +51,17 @@ app.get("/api/persons/:id", (req, res) => {
       .send({ msg: "Could not find person with id: " + req.params.id });
   }
   return res.send({ msg: "Person found", person });
+});
+
+app.post("/api/persons", (req, res) => {
+  const person = req.body;
+  person.id = generateId();
+
+  persons.push(person);
+  return res.status(201).send({
+    msg: "Created a new person",
+    person: person,
+  });
 });
 
 app.delete("/api/persons/:id", (req, res) => {

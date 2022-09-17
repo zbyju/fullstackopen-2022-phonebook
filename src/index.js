@@ -1,8 +1,10 @@
 const morgan = require("morgan");
+const cors = require("cors");
 const express = require("express");
 const app = express();
 
 app.use(express.json());
+app.use(cors());
 
 morgan.token("body", function (req, res) {
   if (req.method !== "POST") return " ";
@@ -62,6 +64,25 @@ app.get("/api/persons/:id", (req, res) => {
   return res.send({ msg: "Person found", person });
 });
 
+app.put("/api/persons/:id", (req, res) => {
+  const person = req.body;
+  let changed = false;
+  persons = persons.map((p) => {
+    if (p.id == req.params.id) {
+      changed = true;
+      return person;
+    }
+    return p;
+  });
+  if (changed) {
+    return res.status(200).send({
+      msg: "Updated person with id: " + req.params.id,
+      person,
+    });
+  }
+  return res.status(404).send({ msg: "Person not found." });
+});
+
 app.post("/api/persons", (req, res) => {
   const person = req.body;
   person.id = generateId();
@@ -89,7 +110,7 @@ app.delete("/api/persons/:id", (req, res) => {
   res.status(204).end();
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

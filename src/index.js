@@ -7,7 +7,7 @@ app.use(express.json());
 app.use(cors());
 
 // Make frontend accessible
-app.use(express.static("build"));
+app.use(express.static("src/build"));
 
 morgan.token("body", function (req, res) {
   if (req.method !== "POST") return " ";

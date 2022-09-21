@@ -1,7 +1,10 @@
+require("dotenv").config();
 const morgan = require("morgan");
 const cors = require("cors");
 const express = require("express");
 const app = express();
+
+const Person = require("./models/person");
 
 app.use(express.json());
 app.use(cors());
@@ -17,101 +20,97 @@ app.use(
   morgan(":method :url :status :res[content-length] - :response-time ms :body")
 );
 
-let persons = [
-  {
-    id: 1,
-    name: "Arto Hellas",
-    number: "040-123456",
-  },
-  {
-    id: 2,
-    name: "Ada Lovelace",
-    number: "39-44-5323523",
-  },
-  {
-    id: 3,
-    name: "Dan Abramov",
-    number: "12-43-234345",
-  },
-  {
-    id: 4,
-    name: "Mary Poppendieck",
-    number: "39-23-6423122",
-  },
-];
-
-function generateId() {
-  return Math.floor(Math.random() * 10000000);
-}
-
 app.get("/info", (req, res) => {
-  res.send(
-    `<p>Phonebook has info about ${
-      persons.length
-    } people.</p><p>${new Date()}</p>`
-  );
-});
-
-app.get("/api/persons", (req, res) => {
-  res.json(persons);
-});
-
-app.get("/api/persons/:id", (req, res) => {
-  const person = persons.find((p) => p.id == req.params.id);
-
-  if (!person) {
-    return res
-      .status(404)
-      .send({ msg: "Could not find person with id: " + req.params.id });
-  }
-  return res.send({ msg: "Person found", person });
-});
-
-app.put("/api/persons/:id", (req, res) => {
-  const person = req.body;
-  let changed = false;
-  persons = persons.map((p) => {
-    if (p.id == req.params.id) {
-      changed = true;
-      return person;
-    }
-    return p;
+  Person.find({}).then((persons) => {
+    res.send(
+      `<p>Phonebook has info about ${
+        persons.length
+      } people.</p><p>${new Date()}</p>`
+    );
   });
-  if (changed) {
-    return res.status(200).send({
-      msg: "Updated person with id: " + req.params.id,
-      person,
-    });
-  }
-  return res.status(404).send({ msg: "Person not found." });
 });
 
-app.post("/api/persons", (req, res) => {
+app.get("/api/persons", (req, res, next) => {
+  Person.find({})
+    .then((persons) => {
+      res.json(persons);
+    })
+    .catch((err) => next(err));
+});
+
+app.get("/api/persons/:id", (req, res, next) => {
+  Person.findById(req.params.id)
+    .then((person) => {
+      if (person) {
+        res.json(person);
+      } else {
+        res.status(404).end();
+      }
+    })
+    .catch((err) => next(err));
+});
+
+app.put("/api/persons/:id", (req, res, next) => {
   const person = req.body;
-  person.id = generateId();
+  Person.findByIdAndUpdate(req.params.id, person, {
+    new: true,
+    runValidators: true,
+    context: "query",
+  })
+    .then((person) => {
+      if (person) {
+        res.json(person);
+      } else {
+        res.status(404).end();
+      }
+    })
+    .catch((err) => next(err));
+});
+
+app.post("/api/persons", (req, res, next) => {
+  const person = req.body;
   if (!person.name || person.name === "") {
     return res.status(400).send({ msg: "No name was specified" });
   }
   if (!person.number || person.number === "") {
     return res.status(400).send({ msg: "No number was specified" });
   }
-  const existingPerson = persons.find((p) => p.name === person.name);
-  if (existingPerson !== undefined) {
-    return res.status(400).send({ msg: "Name must be unique" });
+
+  const newPerson = new Person(person);
+  newPerson
+    .save()
+    .then((person) => {
+      res.json(person);
+    })
+    .catch((err) => next(err));
+});
+
+app.delete("/api/persons/:id", (req, res, next) => {
+  Person.findByIdAndRemove(req.params.id)
+    .then((result) => {
+      res.status(204).end();
+    })
+    .catch((err) => next(err));
+});
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message });
+  } else if (
+    error.name === "MongoServerError" &&
+    error.message.includes("E11000")
+  ) {
+    return response.status(400).json({ error: "duplicate record" });
   }
 
-  persons.push(person);
-  return res.status(201).send({
-    msg: "Created a new person",
-    person: person,
-  });
-});
+  next(error);
+};
 
-app.delete("/api/persons/:id", (req, res) => {
-  persons = persons.filter((p) => p.id != req.params.id);
-
-  res.status(204).end();
-});
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
